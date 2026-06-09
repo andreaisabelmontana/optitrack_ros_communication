@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion-Capture to ROS Bridge — Built From Scratch</title>
+<meta name="description" content="An original from-scratch build of a bridge that streams optical motion-capture tracking data into ROS and re-exposes it over UDP for any external client." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --accent:#db2777; --accent-soft:#fce7f1; --ink:#16201f; --muted:#5d6b69;
+    --line:#dfe5e3; --bg:#fbfcfb; --card:#ffffff;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 28px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);padding:.1em .4em;border-radius:4px;color:#be185d}
+  h1,h2,h3{font-family:var(--serif);font-weight:500;line-height:1.15;letter-spacing:-.01em}
+  /* Header */
+  header.hero{padding:88px 0 56px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 22px}
+  h1{font-size:clamp(2.6rem,6vw,4.1rem);margin:0 0 18px}
+  .lede{font-size:1.22rem;color:var(--muted);max-width:62ch;margin:0 0 28px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.82rem}
+  .chip{font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted);background:var(--card)}
+  /* Sections */
+  section{padding:54px 0;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h2{font-size:clamp(1.7rem,3.4vw,2.3rem);margin:0 0 20px}
+  h3{font-size:1.2rem;margin:0 0 6px}
+  p{margin:0 0 18px;max-width:68ch}
+  .muted{color:var(--muted)}
+  /* Stack grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+  .tool{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .tool .t{font-family:var(--mono);font-size:.78rem;color:var(--accent);letter-spacing:.04em;margin-bottom:8px}
+  .tool h3{font-size:1.05rem;font-family:var(--sans);font-weight:600;margin-bottom:6px}
+  .tool p{font-size:.92rem;color:var(--muted);margin:0}
+  /* Pipeline / modules */
+  ol.flow{counter-reset:s;list-style:none;padding:0;margin:24px 0 0}
+  ol.flow li{position:relative;padding:18px 0 18px 56px;border-top:1px solid var(--line)}
+  ol.flow li:before{counter-increment:s;content:counter(s,decimal-leading-zero);position:absolute;left:0;top:18px;font-family:var(--mono);font-size:.8rem;color:var(--accent);border:1px solid var(--line);border-radius:8px;width:38px;height:38px;display:grid;place-items:center;background:var(--card)}
+  ol.flow li h3{font-family:var(--sans);font-size:1.02rem;font-weight:600;margin:0 0 4px}
+  ol.flow li p{margin:0;font-size:.93rem;color:var(--muted)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+  .tag.on{background:#e6f7ec;color:#1c7a43}
+  .tag.off{background:#fdecea;color:#b23b2c}
+  /* Callout */
+  .callout{background:var(--accent-soft);border:1px solid #f6c2da;border-radius:14px;padding:24px 26px;margin-top:8px}
+  .callout p:last-child{margin:0}
+  /* Reflection list */
+  ul.learn{list-style:none;padding:0;margin:8px 0 0}
+  ul.learn li{padding:14px 0 14px 30px;border-top:1px solid var(--line);position:relative;color:var(--muted);max-width:68ch}
+  ul.learn li:before{content:"→";position:absolute;left:0;color:var(--accent);font-family:var(--mono)}
+  ul.learn li b{color:var(--ink);font-weight:600}
+  /* Footer */
+  footer{padding:48px 0 80px}
+  .credit{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
+  .credit .k{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  footer .fine{font-size:.8rem;color:var(--muted);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">From-Scratch Build · Robotics Networking</p>
+    <h1>Motion-Capture to ROS Bridge</h1>
+    <p class="lede">A room of infrared cameras can pin down where an object is to within a millimetre — but that data is locked inside the capture software. This build is the bridge: a ROS package that pulls tracking data out of an optical motion-capture system, publishes it as ROS topics, and re-exposes it over raw UDP for any external program to read. Built from scratch to learn real-time data plumbing.</p>
+    <div class="meta">
+      <span class="chip">ROS</span><span class="chip">Motion capture</span><span class="chip">NatNet</span>
+      <span class="chip">VRPN</span><span class="chip">UDP sockets</span><span class="chip">roslaunch</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">What it is</p>
+    <h2>Getting tracking data out of the room</h2>
+    <p>An optical motion-capture system surrounds a space with cameras and tracks reflective markers in real time. It knows the position and orientation of every "rigid body" to sub-millimetre precision — but it speaks its own protocols, and the rest of a robotics setup speaks <b>ROS</b>.</p>
+    <p>This package is the translator. It connects to the capture software, turns each tracked body into a ROS topic, and — crucially — also opens <b>UDP sockets</b> so a machine outside the ROS network entirely can subscribe to the same live positions. One bridge, two ways out.</p>
+    <div class="callout">
+      <p><b>The core idea I wanted to learn:</b> real-time data is only useful if everything that needs it can reach it. Bridging a proprietary capture feed into both ROS topics and plain UDP means a robot, a logger and a remote server can all act on the same ground truth.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The stack</p>
+    <h2>Tools under the hood</h2>
+    <p class="muted">Two capture protocols, ROS in the middle, UDP on the way out. Here is what each piece does.</p>
+    <div class="grid">
+      <div class="tool"><div class="t">protocol · fast</div><h3>NatNet</h3><p>The higher-rate path — around 120 Hz with unicast support and fine-grained configuration. Harder to set up, but the option when you need every frame.</p></div>
+      <div class="tool"><div class="t">protocol · simple</div><h3>VRPN</h3><p>The easy path — fewer options, around 50 Hz, and far quicker to launch. The right choice when speed of setup beats raw rate.</p></div>
+      <div class="tool"><div class="t">middleware</div><h3>ROS</h3><p>Each tracked rigid body becomes a ROS topic, so any ROS node in the system can subscribe to live pose data.</p></div>
+      <div class="tool"><div class="t">transport</div><h3>UDP sockets</h3><p>The topics are also exposed as UDP sockets, letting external servers outside ROS read the same stream directly.</p></div>
+      <div class="tool"><div class="t">orchestration</div><h3>roslaunch files</h3><p>Launch files wire up the chosen client and the UDP layer, with parameters for server IP, node count and namespace.</p></div>
+      <div class="tool"><div class="t">generation</div><h3>Node generator</h3><p>A script spins up one publishing node per rigid body, so the number of UDP outputs scales to how many bodies you track.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">How it works</p>
+    <h2>From cameras to a UDP socket</h2>
+    <p>The data takes a clear path from the capture room to any consumer:</p>
+    <ol class="flow">
+      <li><h3>Cameras track <span class="tag on">live</span></h3><p>The motion-capture system locates each marker set and computes rigid-body poses in real time.</p></li>
+      <li><h3>Client connects <span class="tag on">live</span></h3><p>A NatNet or VRPN client subscribes to the capture software's stream over the network.</p></li>
+      <li><h3>Publish to ROS <span class="tag on">live</span></h3><p>Each rigid body is republished as a ROS topic that any node can subscribe to.</p></li>
+      <li><h3>Expose over UDP <span class="tag on">live</span></h3><p>A generated node per body opens a UDP socket, mirroring the pose data outside ROS.</p></li>
+      <li><h3>External read <span class="tag on">live</span></h3><p>A remote server reads the UDP sockets and uses the live positions however it needs.</p></li>
+      <li><h3>Multicast / broadcast <span class="tag off">WIP</span></h3><p>Wider NatNet distribution modes — flagged as work in progress in this build.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Running it</p>
+    <h2>One launch, your choice of path</h2>
+    <p>Everything comes up through a single launch file with sensible defaults you can override:</p>
+    <ul class="learn">
+      <li><b>Default:</b> a single <code>roslaunch</code> brings up the NatNet client and UDP layer together.</li>
+      <li><b>Switch to VRPN:</b> change the namespace parameter to take the simpler, lower-rate path.</li>
+      <li><b>Scale the nodes:</b> set how many rigid bodies to transmit, one UDP node per body.</li>
+      <li><b>Tune the network:</b> point it at the capture server's IP and choose the UDP destination address.</li>
+    </ul>
+    <p class="muted" style="margin-top:18px">In my rebuild I focused on the UDP fan-out: generating one publishing node per rigid body so an off-ROS machine can read exactly the bodies it cares about.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Reflection</p>
+    <h2>What rebuilding it taught me</h2>
+    <ul class="learn">
+      <li><b>Bridges are where real systems live.</b> The interesting engineering wasn't the cameras or ROS — it was getting one to feed the other reliably.</li>
+      <li><b>Two protocols, two trade-offs.</b> NatNet buys you rate at the cost of setup pain; VRPN buys you simplicity. Offering both is a feature.</li>
+      <li><b>Not every consumer speaks ROS.</b> Re-exposing the data over plain UDP is what makes it usable from anything, anywhere on the network.</li>
+      <li><b>Parameters beat hard-coding.</b> Server IP, node count and namespace as launch arguments turned a fixed script into a reusable tool.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="credit">
+      <div class="k">About this build</div>
+      <p style="margin:0">An original, from-scratch build by <b>Andrea</b> — written to learn how real-time tracking data moves from a proprietary capture system into ROS and back out over UDP. Plain HTML/CSS, deployed on GitHub Pages.</p>
+    </div>
+    <p class="fine">Built from scratch by Andrea · one of an ongoing series of learning builds.</p>
+  </div>
+</footer>
+</body>
+</html>
